@@ -9,18 +9,23 @@ Initializes parameters (weights and biases) and hyperparameters (learning rate, 
 
 ### 1.2. `setHyperparameters`(hyperparams (*dict.*))
 Sets hyperparameters of neural network from provided input collection
+In order to standardize setting of parameters, a set of global constants have been declared just before the class declaration, which are used for matching the input hyperparameters with the ones for which functionality has been provided. Hence, it is advisabe to use their form while setting the input hyperparameters
 
 ### 1.3. `initModel`(hyperparams (*dict.*))
 Initializes parameters (weight and bias matrices) of neural network
 
 ### 1.4. `activation`(layerNum, x)
 Computes and return activation values for a given layer and its sum(a<sub>i</sub>) values
+**Note**: For activations requiring an exponential operation, it was observed - especially with hidden ReLU and output softmax layers - that when the magnitudes of each layer output increased, the exponential blew up very quickly. To prevent this, the functions were tackled as -
+- For sigmoid, the output beyond a certain magnitude of input was set to 1 or 0 depending on the sign of the input
+- for softmax, the value was shifted down by the maximum argument within the input and truncated beyond a certain tolerance value to that value itself
 
 ### 1.5. `activationDerivative`(layerNum,**kwargs)
 Computes and returns activation derivative values for a given layer and its sum (a<sub>i</sub>) or output (h<sub>i</sub>) values depending on the given argument
 
 ### 1.6. `lossOutputDerivative`(outputData,targetData)
 Computes and returns loss derivatives for given output and target data
+**Note**: For the cross-entropy derivative, due to the division operation, divide-by-zero errors were encountered at many points. To fix this, division is done only in the entries for the values of target data are 1, and the rest are manually set to 0 instead of performing division at those entries
 
 ### 1.7. `forwardPass`(inputData)
 Computes output activations of all layers of neural network
@@ -150,7 +155,9 @@ Train the network on the given input and target datasets.
 
 - Performs one of the optimization algorithms (from 1.12. to 1.17.) according to the corresponding hyperparameter definition to 'improve' the weights and biases.
 
-(Note that each optimizer also logs the losses and errors in each epoch).
+Each optimizer also logs the losses and errors in each epoch.
+
+Note that x_val, y_val are given as an input just to calculate the loss and error at each epoch. They are ***strictly*** not used anywhere to train the neural network
 
 ## 2. Reading & processing the data
 `keras.datasets.fashion_mnist.load_data()` returns ( (x_train, y_train), (x_test, y_test) )
