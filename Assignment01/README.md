@@ -1,6 +1,3 @@
-### CS6910, Spring 2021
-# Assignment 01
-### Krish R. Kansara (EP17B005), Srijan Gupta (EP17B009)
 
 ## 1. The class `neuralNetwork`
 
@@ -8,159 +5,184 @@
 Initializes parameters (weights and biases) and hyperparameters (learning rate, optimizer, etc.) of neural network
 
 ### 1.2. `setHyperparameters`(hyperparams (*dict.*))
-Sets hyperparameters of neural network from provided input collection
+Sets hyperparameters of neural network from provided input collection<br>
 In order to standardize setting of parameters, a set of global constants have been declared just before the class declaration, which are used for matching the input hyperparameters with the ones for which functionality has been provided. Hence, it is advisabe to use their form while setting the input hyperparameters
 
 ### 1.3. `initModel`(hyperparams (*dict.*))
 Initializes parameters (weight and bias matrices) of neural network
 
 ### 1.4. `activation`(layerNum, x)
-Computes and return activation values for a given layer and its sum(a<sub>i</sub>) values
+Computes and return activation values for a given layer and its sum(a<sub>i</sub>) values<br>
 **Note**: For activations requiring an exponential operation, it was observed - especially with hidden ReLU and output softmax layers - that when the magnitudes of each layer output increased, the exponential blew up very quickly. To prevent this, the functions were tackled as -
-- For sigmoid, the output beyond a certain magnitude of input was set to 1 or 0 depending on the sign of the input
+- For sigmoid, the input was clamped between two fixed high magnitudes beyond which the output was indistinguishable from 1 (order of magnitude of `x` ~ 100)
 - for softmax, the value was shifted down by the maximum argument within the input and truncated beyond a certain tolerance value to that value itself
 
 ### 1.5. `activationDerivative`(layerNum,**kwargs)
 Computes and returns activation derivative values for a given layer and its sum (a<sub>i</sub>) or output (h<sub>i</sub>) values depending on the given argument
 
-### 1.6. `lossOutputDerivative`(outputData,targetData)
-Computes and returns loss derivatives for given output and target data
-**Note**: For the cross-entropy derivative, due to the division operation, divide-by-zero errors were encountered at many points. To fix this, division is done only in the entries for the values of target data are 1, and the rest are manually set to 0 instead of performing division at those entries
+### 1.6. `loss`(outputData,targetData)
+Computes and returns loss values for given output and target data<br>
+**Note**: For the cross-entropy derivative, due to the `log` operation, log-of-zero errors were encountered at some points. To fix this, the inputs are clamped between two values `EXP_INPUT_LOWER_TOL` and`EXP_INPUT_UPPER_TOL`
 
-### 1.7. `forwardPass`(inputData)
-Computes output activations of all layers of neural network
+### 1.7. `lossOutputDerivative`(outputData,targetData)
+Computes and returns loss derivatives for given output and target data<br>
+**Note**: For the cross-entropy derivative, due to the division operation, divide-by-zero errors were encountered at many points. To fix this, the output values (in denominator) are clamped above the value `EXP_INPUT_LOWER_TOL` and`EXP_INPUT_UPPER_TOL`
+
+### 1.8. `lossMetrics`(outputData,targetData)
+Computes and returns loss metrics for given data as `(loss, accuracy)`
+
+### 1.9. `forwardPass`(inputData)
+Computes output activations of all layers of neural network<br>
 Data can also be given as sets of datapoints (dimensions being layer dimension x dataset size - i.e. multiple columns with each column being a datapoint)
 
-### 1.8. `backwardPass`(layerwiseOutputData, targetData)
-Computes weight and bias gradients for all layers of neural network
+### 1.10. `backwardPass`(layerwiseOutputData, targetData)
+Computes weight and bias gradients for all layers of neural network<br>
 Data can also be given as sets of datapoints (dimensions being layer dimension x dataset size - i.e. multiple columns with each column being a datapoint)
 
-### 1.9. `infer`(inputData,**kwargs)
-Perform inference on input dataset using the neural network
-Note that unless `colwiseData=True` is given as an argument, data will be interpreted as being dataset size x layer dimension
+### 1.11. `initOptimizerCollector`()
+Creates object to store update variables used in memory-based algorithms (ex. `update` variables in mumentum)
 
-** Functions 1.10. & 1.11. are called in the functions following them (1.12. to 1.17.)** 
+### 1.12. `updateParameters`(inputData,targetData,opt):
+Performs parameter updates for given input and target datapoints.<br>
+`opt` is the optimizer object created by the above function.
+- The reason for doing it in this roundabout fashion is to keep the training loop separate from the parameter update logic. This makes it possible for this function to be used in a different context too by an external user.
 
-### 1.10. `gradtheta_for_batchindex`(inputData, targetData, datasetSize, batchSize, numBatches, batchIndex)
-- Creates the input and target batch for the current batchIndex
-- Gets the output for all layers by doing `forwardPass`
-- Calculates the gradients w.r.t. the weights and biases by doing `backwardPass` and returns them
+### 1.13. `infer`(inputData,**kwargs)
+Perform inference on input dataset using the neural network<br><br>
 
-### 1.11. `update_val_train_loss_and_acc`(inputData, targetData, x_val, y_val, epoch)
-- Calculates the output for the complete input data
-- Calculates the squared error/cross entropy loss according to the definition of the corresponding hyperparameter for both training and validation sets
-- Calculates and adds the l2 regularization loss
-- Calculates the zero-one error
-Appends the losses and the errors to the corresponding lists
-- Logs the losses and errors and epoch no. in WandB.
+(**Note** that unless `colwiseData=True` is given as an argument, data will be interpreted as being shape = (dataset size, layer dimension))<br>
 
-### 1.12. `sgd`(inputData, targetData, datasetSize, batchSize, numBatches, x_val, y_val)
-- Performs ‘vanilla’ stochastic gradient descent. Update rule for each batch:
+Providing `targetData` as a kwarg also returns the output of `lossMetrics` as `(loss, accuracy)`, leading to the return value being `outputData,(loss, accuracy)`
+
+### 1.14. `train`(inputData, targetData, x_val, y_val, **kwargs)
+Train the network on the given input and target datasets.<br><br>
+
+(**Note** that unless `colwiseData=True` is given as an argument, data will be interpreted as being shape = (dataset size, layer dimension))<br>
+
+- Runs a training loop to perform minibatch gradient descent for one of the optimization algorithms according to the corresponding hyperparameter definition
+
+Each optimizer also logs the losses and errors in each epoch with calls to `lossMetrics`.<br><br>
+
+Note that `inputValidationData` and `targetValidationData` are given as an input just to calculate the loss and error at each epoch. They are ***strictly*** not used anywhere to train the neural network
+
+### Notes on `neuralNetwork` class
+- Gradient descent optimizations covered (can be found in `updateParameters` function):
+1. Vanilla (unoptimized) gradient descent
 ```
-#Get grad theta
-(gradW, gradB) = self.gradtheta_for_batchindex(inputData, targetData, datasetSize, batchSize, numBatches, batchIndex) ##
-# perform parameter update
+# common processing
+layerwiseOutputData = self.forwardPass(inputData)
+(gradW, gradB)      = self.backwardPass(layerwiseOutputData,targetData)
+
+# post-common processing
 for i in range(1,self.numLayers+1):
-  self.wmat[i] += -self.learningRate * gradW[i]
-  self.bias[i] += -self.learningRate * gradB[i]
+	self.wmat[i] += -eta * gradW[i]
+	self.bias[i] += -eta * gradB[i]
 ```
-- Calls `update_val_train_loss_and_acc(...)` in each epoch.
 
-### 1.13. `momentumGD`(inputData, targetData, datasetSize, batchSize, numBatches, x_val, y_val)
--  Performs momentum based gradient descent. Update rule for each batch:
+2. Momentun-based gradient descent
 ```
-#Get grad theta
-(gradW, gradB) = self.gradtheta_for_batchindex(inputData, targetData, datasetSize, batchSize, numBatches, batchIndex) ##
-# perform parameter update
+# common processing
+layerwiseOutputData = self.forwardPass(inputData)
+(gradW, gradB)      = self.backwardPass(layerwiseOutputData,targetData)
+
+# post-common processing
 for i in range(1,self.numLayers+1):
-  update_w[i] = gamma*update_w[i] + eta*gradW[i]
-  update_b[i] = gamma*update_b[i] + eta*gradB[i]
-  self.wmat[i] += -update_w[i]
-  self.bias[i] += -update_b[i]
+	update_w[i] = gamma*update_w[i] + eta*gradW[i]
+	update_b[i] = gamma*update_b[i] + eta*gradB[i]
+	self.wmat[i] += -update_w[i]
+	self.bias[i] += -update_b[i]
 ```
-- Calls `update_val_train_loss_and_acc(...)` in each epoch.
 
-### 1.14. `NAG`(inputData, targetData, datasetSize, batchSize, numBatches, x_val, y_val)
-- Performs nesterov accelerated gradient descent. Update rule for each batch:
+3. Nesterov-accelerated gradient descent
 ```
-# perform look ahead parameter update
+# pre-common processing
 for i in range(1,self.numLayers+1):
-  self.wmat[i] += -gamma*update_w[i]
-  self.bias[i] += -gamma*update_b[i]
-(gradW, gradB) = self.gradtheta_for_batchindex(inputData, targetData, datasetSize, batchSize, numBatches, batchIndex) ##
-# perform parameter update
+	self.wmat[i] += -gamma*update_w[i]
+	self.bias[i] += -gamma*update_b[i]
+
+# common processing
+layerwiseOutputData = self.forwardPass(inputData)
+(gradW, gradB)      = self.backwardPass(layerwiseOutputData,targetData)
+
+# post-common processing
 for i in range(1,self.numLayers+1):
-  update_w[i] = gamma*update_w[i] + eta*gradW[i]
-  update_b[i] = gamma*update_b[i] + eta*gradB[i]
-  self.wmat[i] += -eta*gradW[i]
-  self.bias[i] += -eta*gradB[i]
+	update_w[i] = gamma*update_w[i] + eta*gradW[i]
+	update_b[i] = gamma*update_b[i] + eta*gradB[i]
+	self.wmat[i] += -eta*gradW[i]
+	self.bias[i] += -eta*gradB[i]
 ```
-- Calls `update_val_train_loss_and_acc(...)` in each epoch.
 
-### 1.15. `rmsprop`(inputData, targetData, datasetSize, batchSize, numBatches, x_val, y_val)
-- Performs root mean square propagation.  Update rule for each batch:
+4. RMSprop
 ```
-(gradW, gradB) = self.gradtheta_for_batchindex(inputData, targetData, datasetSize, batchSize, numBatches, batchIndex) ##
-# perform parameter update
+# common processing
+layerwiseOutputData = self.forwardPass(inputData)
+(gradW, gradB)      = self.backwardPass(layerwiseOutputData,targetData)
+
+# post-common processing
 for i in range(1,self.numLayers+1):
-  v_w[i] = beta*v_w[i] + (1-beta)*gradW[i]**2
-  v_b[i] = beta*v_b[i] + (1-beta)*gradB[i]**2 
-  self.wmat[i] += -eta * (v_w[i] + epsilon)**-0.5 * gradW[i]
-  self.bias[i] += -eta * (v_b[i] + epsilon)**-0.5 * gradB[i]
+	v_w = opt["v_w"]; v_b = opt["v_b"]
+	v_w[i] = beta*v_w[i] + (1-beta)*gradW[i]**2
+	v_b[i] = beta*v_b[i] + (1-beta)*gradB[i]**2 
+	self.wmat[i] += -eta * (v_w[i] + epsilon)**-0.5 * gradW[i]
+	self.bias[i] += -eta * (v_b[i] + epsilon)**-0.5 * gradB[i]
 ```
-- Calls `update_val_train_loss_and_acc(...)` in each epoch.
 
-### 1.16. `adam`(inputData, targetData, datasetSize, batchSize, numBatches, x_val, y_val)
-- Performs adam. Update rule for each batch:
+5. AdaM
 ```
-(gradW, gradB) = self.gradtheta_for_batchindex(inputData, targetData, datasetSize, batchSize, numBatches, batchIndex) ##
-# perform parameter update
+# common processing
+layerwiseOutputData = self.forwardPass(inputData)
+(gradW, gradB)      = self.backwardPass(layerwiseOutputData,targetData)
+
+# post-common processing
 for i in range(1,self.numLayers+1):
-  m_w[i] = beta_1*m_w[i] + (1-beta_1)*gradW[i]
-  m_b[i] = beta_1*m_b[i] + (1-beta_1)*gradB[i]
-  v_w[i] = beta_2*v_w[i] + (1-beta_2)*gradW[i]**2
-  v_b[i] = beta_2*v_b[i] + (1-beta_2)*gradB[i]**2
-  m_w_hat = m_w[i]/(1-beta_1**t)
-  m_b_hat = m_b[i]/(1-beta_1**t)
-  v_w_hat = v_w[i]/(1-beta_2**t)
-  v_b_hat = v_b[i]/(1-beta_2**t)
-  self.wmat[i] += -eta * (v_w_hat + epsilon)**-0.5 * m_w_hat
-  self.bias[i] += -eta * (v_b_hat + epsilon)**-0.5 * m_b_hat
+	m_w[i] = beta_1*m_w[i] + (1-beta_1)*gradW[i]
+	m_b[i] = beta_1*m_b[i] + (1-beta_1)*gradB[i]
+	v_w[i] = beta_2*v_w[i] + (1-beta_2)*gradW[i]**2
+	v_b[i] = beta_2*v_b[i] + (1-beta_2)*gradB[i]**2
+	m_w_hat = m_w[i]/(1-beta_1**t)
+	m_b_hat = m_b[i]/(1-beta_1**t)
+	v_w_hat = v_w[i]/(1-beta_2**t)
+	v_b_hat = v_b[i]/(1-beta_2**t)
+	self.wmat[i] += -eta * (v_w_hat + epsilon)**-0.5 * m_w_hat
+	self.bias[i] += -eta * (v_b_hat + epsilon)**-0.5 * m_b_hat
 ```
-- Calls `update_val_train_loss_and_acc(...)` in each epoch.
 
-### 1.17. `nadam`(inputData, targetData, datasetSize, batchSize, numBatches, x_val, y_val)
-- Performs nadam. Update rule for each batch:
+6. NAdaM
 ```
-(gradW, gradB) = self.gradtheta_for_batchindex(inputData, targetData, datasetSize, batchSize, numBatches, batchIndex) ##
-# perform parameter update
+# common processing
+layerwiseOutputData = self.forwardPass(inputData)
+(gradW, gradB)      = self.backwardPass(layerwiseOutputData,targetData)
+
+# post-common processing
 for i in range(1,self.numLayers+1):
-  m_w[i] = beta_1*m_w[i] + (1-beta_1)*gradW[i]
-  m_b[i] = beta_1*m_b[i] + (1-beta_1)*gradB[i]
-  v_w[i] = beta_2*v_w[i] + (1-beta_2)*gradW[i]**2
-  v_b[i] = beta_2*v_b[i] + (1-beta_2)*gradB[i]**2
-  m_w_hat = (beta_1/(1-beta_1**(t+1)))*m_w[i] + ((1-beta_1)/(1-beta_1**t))*gradW[i]
-  m_b_hat = (beta_1/(1-beta_1**(t+1)))*m_b[i] + ((1-beta_1)/(1-beta_1**t))*gradB[i]
-  v_w_hat = v_w[i]/(1-beta_2**t)
-  v_b_hat = v_b[i]/(1-beta_2**t)
-  self.wmat[i] += -eta * (v_w_hat + epsilon)**-0.5 * m_w_hat
-  self.bias[i] += -eta * (v_b_hat + epsilon)**-0.5 * m_b_hat
+	m_w[i] = beta_1*m_w[i] + (1-beta_1)*gradW[i]
+	m_b[i] = beta_1*m_b[i] + (1-beta_1)*gradB[i]
+	v_w[i] = beta_2*v_w[i] + (1-beta_2)*gradW[i]**2
+	v_b[i] = beta_2*v_b[i] + (1-beta_2)*gradB[i]**2
+	m_w_hat = (beta_1/(1-beta_1**(t+1)))*m_w[i] + ((1-beta_1)/(1-beta_1**t))*gradW[i]
+	m_b_hat = (beta_1/(1-beta_1**(t+1)))*m_b[i] + ((1-beta_1)/(1-beta_1**t))*gradB[i]
+	v_w_hat = v_w[i]/(1-beta_2**t)
+	v_b_hat = v_b[i]/(1-beta_2**t)
+	self.wmat[i] += -eta * (v_w_hat + epsilon)**-0.5 * m_w_hat
+	self.bias[i] += -eta * (v_b_hat + epsilon)**-0.5 * m_b_hat
 ```
-- Calls `update_val_train_loss_and_acc(...)` in each epoch.
 
-### 1.18. `train`(inputData, targetData, x_val, y_val, **kwargs)
-Train the network on the given input and target datasets.
+- To add a new optimizer:
+1. Add the core math functionality in an `elif` statement in the `updateParameters` function, similar to the above mentioned algorithms
+2. If any memory storage is required, it can be declared in the `initOptimizerCollector` function
+3. Put the algorithm `if`-clause key above the class, naming it similar to the already named ones. You're done!
 
-(**Note** that unless `colwiseData=True` is given as an argument, data will be interpreted as being shape = (dataset size, layer dimension))
+- To add a new loss function:
+1. Add the loss and loss derivative functionality in `loss` and `lossOutputDerivative` functions respectively
+2. Put the loss function `if`-clause key above the class, naming it similar to the already named ones. You're done!
 
-- Performs one of the optimization algorithms (from 1.12. to 1.17.) according to the corresponding hyperparameter definition to 'improve' the weights and biases.
+- To add a new activation function:
+1. Add the activation function and activation derivative functionality in `activation` and `activationDerivative` functions respectively
+2. Put the activation function `if`-clause key above the class, naming it similar to the already named ones. You're done!
 
-Each optimizer also logs the losses and errors in each epoch.
-
-Note that x_val, y_val are given as an input just to calculate the loss and error at each epoch. They are ***strictly*** not used anywhere to train the neural network
 
 ## 2. Reading & processing the data
-`keras.datasets.fashion_mnist.load_data()` returns ( (x_train, y_train), (x_test, y_test) )
+`keras.datasets.fashion_mnist.load_data()` returns `( (x_train, y_train), (x_test, y_test) )`
 ### 2.1. Processing 'x' data:
 The elements of x_train and x_test are 2D numpy arrays (corresponding to each image) but our neural network can only take a 1D input. Hence, we flatten each of the elements by using `np.reshape(...)`. The processed datasets are named `x_train_1D` and `x_test_1D`.
 ```
@@ -202,12 +224,19 @@ Here are the currently supported hyperparameters for our neural network class:
 - `beta_1`: momentum scaling parameter (*gamma* in momentum and Nesterov optimizations, *beta_1* in AdaM and NAdaM)
 - `beta_2`: learning rate scaling hyperparam (used in AdaM and NAdaM)
 - `epsilon`: learning rate scaling hyperparam (used in AdaM and NAdaM)
-- `regparam`: L2 regularisation coefficient (*alpha*)
+- `regparam`: L2 regularisation (weight decay) coefficient (*alpha*)
+- `wandb`: whether WandB is to be used or not (Boolean)
 
 ### 3.2. Training and evaluation
-A `neuralNetwork` object is created with the constructor argument being the above creted dict obect that holds the hyperparameters. Once that is done, the `train` member function of the class is invoked with the arguments being the training inputs and targets, as well as the validation inputs and targets, which are **strictly** not used for any training, only in the calculation of loss. At each epoch, the `update_val_train_loss_and_acc` functions logs training and validation loss and accuracy values into a WandB run.
+A `neuralNetwork` object is created with the constructor argument being the above created dict obect that holds the hyperparameters. Once that is done, the `train` member function of the class is invoked with the arguments being the training inputs and targets, as well as the validation inputs and targets, which are **strictly** not used for any training, only in the calculation of loss. At each epoch, the `lossMetrics` function logs training and validation loss and accuracy values into a WandB run.
 
-Once the model has been trained, test data is run using the `infer` function. Error logging can be done indirectly by passing the test data to the earlier function and observing the WandB run status.
+Once the model has been trained, test data is run using the `infer` function. Error can be obtained by passing the target data as a `targetData` kwarg and receiving the outputs as: `outputData, (loss, accuracy)` (without passing the kwarg, only `outputData` is returned).
 
 ## 4. Executing a sweep
-Finally, in order to run the sweep, a function `runSweep()` is created (not part of class). This function translates the parameters as given in the assignment report into the forms compatible with our model (to maintain generality), performs all the training runs and logs all the values mentioned in the earlier section into WandB.
+Finally, in order to run the sweep, a function `runSweep()` is provided (not part of class). This function translates the parameters as given in the assignment report into the forms compatible with our model (keeping in mind the need for a higher level of generality), performs all the training runs and logs all the values mentioned in the earlier section into WandB.
+
+## 5. Testing and Confusion Matrix
+In order to plot the confusion matrix, the data is inferred for a set of hyperparameters that displayed a high accuracy during the sweeps. Once that is done, `matplotlib qt` and `mpl_toolkits` are used to plot the confusion matrix. We hope you like our humble effort of trying to be a little creative with it.
+
+## 6. MNIST digit database runs
+Finally, three sets of hyperparameters showing the most optimal loss metrics are applied to the problem of training the MNIST digit database. The procedure is fairly similar to that employed in the Fashion-MNIST dataset used upto now, and the results are logged into WandB.
