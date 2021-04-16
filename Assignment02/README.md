@@ -47,7 +47,7 @@ The config is essentially a dictionary object that contains information about th
 ## Functions
 1. `finetune_model(hyp)`
 Performs finetuning on the given model for the given set of the following training parameters:
-* `model`: neural network architecture to be used
+* `model`: neural network architecture to be used, along with the helper class for that architcture. For e.g., `('InceptionV3', 'inception_v3')`
 * `include_top`: whether to include the 1000-classes layer between CONV and final 10-class layer or not
 * `num_unfrozen`: number of CONV layers before dense layer to be unfrozen for the second half of training
 * `eta`: learning rate
